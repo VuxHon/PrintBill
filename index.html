@@ -390,7 +390,8 @@
 
         // Function to fetch QR code
         async function fetchQRCode(amount, note) {
-            const amountWithoutCommas = amount.replace(/,/g, '');
+            // Remove all non-digit characters and convert to number
+            const amountWithoutCommas = amount.replace(/\D/g, '');
             const url = `https://img.vietqr.io/image/ACB-35041687-print.png?amount=${amountWithoutCommas}&accountName=NGUYEN%20HUU%20TAN&addInfo=${encodeURIComponent(note)}`;
             
             try {
