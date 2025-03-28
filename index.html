@@ -164,6 +164,14 @@
                 <label for="final-total">Tổng giá thanh toán</label>
                 <input type="text" id="final-total" readonly>
             </div>
+            <div class="input-group">
+                <label for="deposit-amount">Số tiền đặt cọc (nếu có)</label>
+                <input type="text" id="deposit-amount" value="0" oninput="formatAndCalculateTotal(this, 'deposit')">
+            </div>
+            <div class="input-group">
+                <label for="deposit-note">Nội dung chuyển khoản</label>
+                <input type="text" id="deposit-note" placeholder="Nhập nội dung chuyển khoản">
+            </div>
 
             <div class="actions">
                 <button onclick="generatePDF()">Tạo Hóa Đơn</button>
@@ -244,8 +252,9 @@
 
         // Định dạng và tính toán tổng cộng (giảm giá, phí ship)
         function formatAndCalculateTotal(input, type) {
-            if (type === 'discount' || type === 'shipping') {
-                input.value = formatNumber(parseNumber(input.value));
+            if (type === 'discount' || type === 'shipping' || type === 'deposit') {
+                const value = parseNumber(input.value);
+                input.value = formatNumber(value);
             }
             calculateTotal();
         }
@@ -289,6 +298,8 @@
                 discount: document.getElementById('discount').value,
                 shippingFee: document.getElementById('shipping-fee').value,
                 finalTotal: document.getElementById('final-total').value,
+                depositAmount: document.getElementById('deposit-amount').value,
+                depositNote: document.getElementById('deposit-note').value
             };
         }
         
@@ -363,10 +374,24 @@
             });
         }
 
+        // Function to create QR code page
+        function createQRCodePage(qrCodeUrl, amount) {
+            return `
+                <div id="qr-page" style="width: 105mm; height: 148mm; padding: 10mm; font-family: Arial, sans-serif; font-size: 8px; border: 1px solid #000; box-sizing: border-box; margin: 0 auto;">
+                    <h2 style="text-align: center; font-size: 12px; font-weight: bold; margin-bottom: 10px;">Mã QR Thanh Toán</h2>
+                    <div style="text-align: center; margin-bottom: 10px;">
+                        <img src="${qrCodeUrl}" style="max-width: 90%; height: auto;">
+                    </div>
+                    <p style="text-align: center; font-size: 8px; margin-top: 10px;">Số tiền: ${amount}₫</p>
+                    <p style="text-align: center; font-size: 8px; margin-top: 5px;">Vui lòng quét mã QR để thanh toán</p>
+                </div>
+            `;
+        }
+
         // Function to fetch QR code
-        async function fetchQRCode(amount) {
+        async function fetchQRCode(amount, note) {
             const amountWithoutCommas = amount.replace(/,/g, '');
-            const url = `https://img.vietqr.io/image/ACB-35041687-print.png?amount=${amountWithoutCommas}&accountName=NGUYEN%20HUU%20TAN`;
+            const url = `https://img.vietqr.io/image/ACB-35041687-print.png?amount=${amountWithoutCommas}&accountName=NGUYEN%20HUU%20TAN&addInfo=${encodeURIComponent(note)}`;
             
             try {
                 const response = await fetch(url);
@@ -378,28 +403,19 @@
             }
         }
 
-        // Function to create QR code page
-        function createQRCodePage(qrCodeUrl) {
-            return `
-                <div id="qr-page" style="width: 105mm; height: 148mm; padding: 10mm; font-family: Arial, sans-serif; font-size: 12px; border: 1px solid #000; box-sizing: border-box; margin: 0 auto;">
-                    <h2 style="text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 20px;">Mã QR Thanh Toán</h2>
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <img src="${qrCodeUrl}" style="max-width: 80%; height: auto;">
-                    </div>
-                    <p style="text-align: center; font-size: 10px; margin-top: 20px;">Vui lòng quét mã QR để thanh toán</p>
-                </div>
-            `;
-        }
-
         // Updated generatePDF function
         async function generatePDF() {
             const data = getData();
             const invoiceContent = renderHTML(data);
             
+            // Determine which amount to use for QR code
+            const amountToUse = parseNumber(data.depositAmount) > 0 ? data.depositAmount : data.finalTotal;
+            const noteToUse = data.depositNote || `Thanh toan don hang ${data.invoiceId}`;
+            
             // Fetch QR code
-            const qrCodeUrl = await fetchQRCode(data.finalTotal);
+            const qrCodeUrl = await fetchQRCode(amountToUse, noteToUse);
             if (qrCodeUrl) {
-                const qrCodePage = createQRCodePage(qrCodeUrl);
+                const qrCodePage = createQRCodePage(qrCodeUrl, amountToUse);
                 const combinedContent = invoiceContent + qrCodePage;
                 convertHTMLToPDF(combinedContent);
             } else {
